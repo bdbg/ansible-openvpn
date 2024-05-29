@@ -1,0 +1,41 @@
+- command: hostname
+  register: hostname
+- set_fact:
+    hostname={{ hostname.stdout }}
+- set_fact:
+    ca_base_dir="{{ base_dir }}/ca"
+- set_fact:
+    ca_pki_dir="{{ ca_base_dir }}/pki"
+
+- name: "Setup CA directory"
+  command: make-cadir {{ ca_base_dir }}
+  args:
+    creates: '{{ ca_base_dir }}'
+
+- name: Init CA PKI
+  shell: export EASYRSA_BATCH=1 && ./easyrsa init-pki
+  args:
+    chdir: '{{ ca_base_dir }}'
+    creates: '{{ ca_pki_dir }}'
+
+- name: Configure CA vars
+  become: true
+  lineinfile:
+    path: '{{ ca_base_dir }}/vars'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - { regexp: 'set_var EASYRSA_REQ_COUNTRY', line: 'set_var EASYRSA_REQ_COUNTRY "US"' }
+    - { regexp: 'set_var EASYRSA_REQ_PROVINCE', line: 'set_var EASYRSA_REQ_PROVINCE "NewYork"' }
+    - { regexp: 'set_var EASYRSA_REQ_CITY', line: 'set_var EASYRSA_REQ_CITY "New York City"' }
+    - { regexp: 'set_var EASYRSA_REQ_ORG', line: 'set_var EASYRSA_REQ_ORG "DigitalOcean"' }
+    - { regexp: 'set_var EASYRSA_REQ_EMAIL', line: 'set_var EASYRSA_REQ_EMAIL "admin@example.com"' }
+    - { regexp: 'set_var EASYRSA_REQ_OU', line: 'set_var EASYRSA_REQ_OU "Community"' }
+    - { regexp: 'set_var EASYRSA_ALGO', line: 'set_var EASYRSA_ALGO "ec"' }
+    - { regexp: 'set_var EASYRSA_DIGEST', line: 'set_var EASYRSA_DIGEST "sha512"' }
+
+- name: Generate CA keypair and cert
+  shell: export EASYRSA_BATCH=1 && ./easyrsa build-ca nopass
+  args:
+    chdir: '{{ ca_base_dir }}'
+    creates: '{{ ca_pki_dir }}/ca.crt'

@@ -1,0 +1,4 @@
+- name: Prepare
+  include_tasks: 00_prepare.yml
+- name: Setup CA
+  include_tasks: 01_ca.yml

@@ -1,0 +1,83 @@
+- command: hostname
+  register: hostname
+- set_fact:
+    hostname={{ hostname.stdout }}
+
+- name: Copy CA public key to openvpn server
+  shell: scp -o StrictHostKeyChecking=accept-new {{ remote_ca_pki_dir }}/ca.crt /tmp
+
+- name: Copy CA public key to OS ca-certificates
+  become: true
+  shell: cp /tmp/ca.crt /usr/local/share/ca-certificates/
+
+- name: Update trusted CA
+  become: true
+  shell: update-ca-certificates
+
+- name: Setup server directory
+  command: make-cadir {{ server_base_dir }}
+  args:
+    creates: '{{ server_base_dir }}'
+
+- name: Configure server vars
+  become: true
+  lineinfile:
+    path: '{{ server_base_dir }}/vars'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - { regexp: 'set_var EASYRSA_ALGO', line: 'set_var EASYRSA_ALGO "ec"' }
+    - { regexp: 'set_var EASYRSA_DIGEST', line: 'set_var EASYRSA_DIGEST "sha512"' }
+
+- name: Init server PKI
+  shell: export EASYRSA_BATCH=1 && ./easyrsa init-pki
+  args:
+    chdir: '{{ server_base_dir }}'
+    creates: '{{ server_pki_dir }}'
+
+- name: Generate server CSR
+  shell: export EASYRSA_BATCH=1 && ./easyrsa gen-req {{hostname}} nopass
+  args:
+    chdir: '{{ server_base_dir }}'
+    creates: '{{ server_pki_dir }}/reqs/{{hostname}}.req'
+
+- name: Copy server private key to openvpn server directory
+  become: true
+  shell: cp {{ server_pki_dir }}/private/{{hostname}}.key /etc/openvpn/server/
+
+- name: Copy server CSR to CA
+  shell: scp {{ server_pki_dir }}/reqs/{{hostname}}.req {{ ca_host }}:/tmp
+
+- name: Import server CSR to CA
+  shell: export EASYRSA_BATCH=1 && ./easyrsa import-req /tmp/{{hostname}}.req {{hostname}}
+  args:
+    chdir: '{{ ca_base_dir }}'
+    creates: '{{ ca_pki_dir }}/reqs/{{hostname}}.req'
+  delegate_to: '{{ ca_host }}'
+
+- name: Sign server CSR by CA
+  shell: export EASYRSA_BATCH=1 && ./easyrsa sign-req server {{hostname}}
+  args:
+    chdir: '{{ ca_base_dir }}'
+    creates: '{{ ca_pki_dir }}/issued/{{hostname}}.crt'
+  delegate_to: '{{ ca_host }}'
+
+- name: Copy signed certificate to openvpn server
+  shell: scp {{ remote_ca_pki_dir }}/issued/{{hostname}}.crt /tmp
+
+- name: Copy ca.crt and signed certificate to openvpn server directory
+  become: true
+  shell: cp {{ item }} /etc/openvpn/server
+  with_items:
+    - '/tmp/ca.crt'
+    - '/tmp/{{hostname}}.crt'
+
+- name: Generate tls-crypt pre-shared key
+  shell: openvpn --genkey --secret ta.key
+  args:
+    chdir: '{{ server_base_dir }}'
+    creates: '{{ server_base_dir }}/ta.key'
+
+- name: Copy tls-crypt pre-shared key to openvpn server directory
+  become: true
+  shell: cp {{ server_base_dir }}/ta.key /etc/openvpn/server/

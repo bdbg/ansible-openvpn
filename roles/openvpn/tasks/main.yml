@@ -1,0 +1,16 @@
+- name: Prepare
+  include_tasks: 00_prepare.yml
+- name: Setup server
+  include_tasks: 01_server.yml
+- name: Generate client certificates
+  include_tasks: 02_client.yml
+- name: Configure OpenVPN
+  include_tasks: 03_openvpn.yml
+- name: Configure networking
+  include_tasks: 04_networking.yml
+- name: Configure firewall
+  include_tasks: 05_firewall.yml
+- name: Start OpenVPN
+  include_tasks: 06_start_openvpn.yml
+- name: Create client configuration infrastructure
+  include_tasks: 07_client_configs.yml

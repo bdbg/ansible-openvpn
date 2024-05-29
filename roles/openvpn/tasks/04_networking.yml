@@ -1,0 +1,14 @@
+- name: "Setting IP forwarding"
+  become: true
+  lineinfile:
+    path: /etc/sysctl.conf
+    regexp: 'net.ipv4.ip_forward'
+    line: "net.ipv4.ip_forward=1"
+  tags:
+    - setipforward
+
+- name: "Sysctl reload"
+  become: true
+  shell: sysctl -p
+  tags:
+    - setipforward

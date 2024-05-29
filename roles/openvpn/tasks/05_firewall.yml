@@ -1,0 +1,37 @@
+- shell: ip route list default | awk '{print $5}'
+  register: interface
+- set_fact:
+    interface={{ interface.stdout }}
+
+- name: Masquerade traffic from VPN
+  become: true
+  blockinfile:
+    path: /etc/ufw/before.rules
+    block: |
+      # START OPENVPN RULES
+      # NAT table rules
+      *nat
+      :POSTROUTING ACCEPT [0:0]
+      # Allow traffic from OpenVPN client  (change to the interface you discovered!)
+      -A POSTROUTING -s 10.8.0.0/8 -o {{ interface }} -j MASQUERADE
+      COMMIT
+      # END OPENVPN RULES
+
+- name: Allow forwarded packets
+  become: true
+  lineinfile:
+    path: /etc/default/ufw
+    regexp: 'DEFAULT_FORWARD_POLICY'
+    line: 'DEFAULT_FORWARD_POLICY="ACCEPT"'
+
+- name: Allow VPN traffic on port 1194 UDP
+  become: true
+  shell: ufw allow 1194/udp
+
+- name: Allow VPN traffic on SSH
+  become: true
+  shell: ufw allow OpenSSH
+
+- name: Reload firewall
+  become: true
+  shell: ufw disable && ufw --force enable

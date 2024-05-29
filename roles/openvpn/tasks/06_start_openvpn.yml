@@ -1,0 +1,10 @@
+- name: Enable OpenVPN service
+  become: true
+  shell: systemctl -f {{ item }} openvpn-server@server.service
+  with_items:
+    - disable
+    - enable
+
+- name: Start OpenVPN service
+  become: true
+  shell: systemctl restart openvpn-server@server.service

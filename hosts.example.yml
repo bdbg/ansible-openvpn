@@ -1,0 +1,13 @@
+ca:
+  hosts:
+    user@127.0.0.1:
+openvpn:
+  hosts:
+    user@127.0.0.1:
+  vars:
+    ca_host_user: user
+    ca_host_ip: '127.0.0.1'
+    clients:
+      - name: client1
+      - name: client2
+      - name: client3

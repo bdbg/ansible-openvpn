@@ -1,0 +1,29 @@
+- command: hostname
+  register: hostname
+- set_fact:
+    hostname={{ hostname.stdout }}
+
+- name: Copy sample openvpn configuration
+  become: true
+  shell: cp /usr/share/doc/openvpn/examples/sample-config-files/server.conf /etc/openvpn/server/
+
+- name: Configure
+  become: true
+  lineinfile:
+    path: /etc/openvpn/server/server.conf
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - { regexp: 'tls-auth ta.key 0', line: "tls-crypt /etc/openvpn/server/ta.key" }
+    - { regexp: 'cipher AES-256-CBC', line: "cipher AES-256-GCM\nauth SHA256" }
+    - { regexp: 'dh dh', line: "dh none" }
+    - { regexp: 'user nobody', line: "user nobody" }
+    - { regexp: 'group nobody', line: "group nogroup" }
+    - { regexp: 'redirect-gateway def1 bypass-dhcp', line: 'push "redirect-gateway def1 bypass-dhcp"' }
+    - { regexp: 'dhcp-option DNS 208.67.222.222', line: 'push "dhcp-option DNS 208.67.222.222"' }
+    - { regexp: 'dhcp-option DNS 208.67.220.220', line: 'push "dhcp-option DNS 208.67.220.220"' }
+    - { regexp: 'ca ca.crt', line: "ca /etc/openvpn/server/ca.crt" }
+    - { regexp: 'cert server.crt', line: "cert /etc/openvpn/server/{{hostname}}.crt" }
+    - { regexp: 'key server.key', line: "key /etc/openvpn/server/{{hostname}}.key" }
+    - { regexp: 'proto udp', line: "proto udp4" }
+    - { regexp: 'topology subnet', line: "topology subnet" }

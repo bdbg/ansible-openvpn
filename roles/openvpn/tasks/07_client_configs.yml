@@ -1,0 +1,72 @@
+- command: hostname
+  register: hostname
+- set_fact:
+    hostname={{ hostname.stdout }}
+- set_fact:
+    files_dir="{{ client_configs_dir }}/files"
+- set_fact:
+    base_conf="{{ client_configs_dir }}/base.conf"
+
+- name: Create files directory
+  shell: mkdir -p {{ files_dir }}
+  args:
+    creates: '{{ files_dir }}'
+
+- name: Copy sample client configuration
+  shell: cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf {{ base_conf }}
+
+- name: Configure base config
+  lineinfile:
+    path: '{{ base_conf }}'
+    regexp: '{{ item.regexp }}'
+    line: '{{ item.line }}'
+  with_items:
+    - { regexp: 'remote my-server-1', line: 'remote {{ ansible_default_ipv4.address }} 1194' }
+    - { regexp: 'user nobody', line: "user nobody" }
+    - { regexp: 'group nobody', line: "group nogroup" }
+    - { regexp: 'ca ca.crt', line: "; ca ca.crt" }
+    - { regexp: 'cert client.crt', line: "; cert client.crt" }
+    - { regexp: 'key client.key', line: "; key client.key" }
+    - { regexp: 'tls-auth ta.key', line: "; tls-auth ta.key 1" }
+    - { regexp: 'proto udp', line: "proto udp4" }
+    - { regexp: 'cipher AES-256-CBC', line: "cipher AES-256-GCM\nauth SHA256\nkey-direction 1" }
+
+- name: Clients resolving DNS via resolvconf
+  blockinfile:
+    path: '{{ base_conf }}'
+    block: |
+      ; script-security 2
+      ; up /etc/openvpn/update-resolv-conf
+      ; down /etc/openvpn/update-resolv-conf
+
+- name: Clients resolving DNS via systemd-resolved
+  blockinfile:
+    path: '{{ base_conf }}'
+    block: |
+      ; script-security 2
+      ; up /etc/openvpn/update-systemd-resolved
+      ; down /etc/openvpn/update-systemd-resolved
+      ; down-pre
+      ; dhcp-option DOMAIN-ROUTE .
+
+- name: Create script to generate client configs
+  template:
+    src: files/make_config.sh.j2
+    dest: "{{ client_configs_dir }}/make_config.sh"
+
+- name: Make script executable
+  shell: chmod +x {{ client_configs_dir }}/make_config.sh
+
+- name: Generate client configs
+  shell: ./make_config.sh {{ item.name }}
+  args:
+    chdir: '{{ client_configs_dir }}'
+    creates: '{{ client_configs_dir }}/files/{{ item.name }}.ovpn'
+  with_items: '{{ clients }}'
+
+- name: Get client ovpn files
+  fetch:
+    src: '{{ client_configs_dir }}/files/{{ item.name }}.ovpn'
+    dest: ./
+    flat: yes
+  with_items: '{{ clients }}'

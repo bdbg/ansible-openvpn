@@ -1,0 +1,19 @@
+---
+- hosts: ca
+  roles:
+    - ca
+  vars:
+    base_dir: "{{ ansible_env.HOME }}/ansible-openvpn"
+- hosts: openvpn
+  roles:
+    - openvpn
+  vars:
+    base_dir: "{{ ansible_env.HOME }}/ansible-openvpn"
+    server_base_dir: "{{ base_dir }}/server"
+    server_pki_dir: "{{ server_base_dir }}/pki"
+    client_configs_dir: "{{ base_dir }}/client-configs"
+    ca_base_dir: "{{ base_dir }}/ca"
+    ca_pki_dir: "{{ ca_base_dir }}/pki"
+    remote_ca_base_dir: "{{ ca_host }}:{{ ca_base_dir }}"
+    remote_ca_pki_dir: "{{ ca_host }}:{{ ca_pki_dir }}"
+    ca_host: "{{ ca_host_user }}@{{ ca_host_ip }}"
